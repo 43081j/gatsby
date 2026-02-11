@@ -1,19 +1,15 @@
-import chalk from "chalk"
+import pc from "picocolors"
 
 import { IPreparedUrls } from "../utils/prepare-urls"
 
 export function printInstructions(appName: string, urls: IPreparedUrls): void {
   console.log()
-  console.log(`You can now view ${chalk.bold(appName)} in the browser.`)
+  console.log(`You can now view ${pc.bold(appName)} in the browser.`)
   console.log()
 
   if (urls.lanUrlForTerminal) {
-    console.log(
-      `  ${chalk.bold(`Local:`)}            ${urls.localUrlForTerminal}`
-    )
-    console.log(
-      `  ${chalk.bold(`On Your Network:`)}  ${urls.lanUrlForTerminal}`
-    )
+    console.log(`  ${pc.bold(`Local:`)}            ${urls.localUrlForTerminal}`)
+    console.log(`  ${pc.bold(`On Your Network:`)}  ${urls.lanUrlForTerminal}`)
   } else {
     console.log(`  ${urls.localUrlForTerminal}`)
   }
@@ -26,12 +22,10 @@ export function printInstructions(appName: string, urls: IPreparedUrls): void {
 
   if (urls.lanUrlForTerminal) {
     console.log(
-      `  ${chalk.bold(`Local:`)}            ${
-        urls.localUrlForTerminal
-      }___graphql`
+      `  ${pc.bold(`Local:`)}            ${urls.localUrlForTerminal}___graphql`
     )
     console.log(
-      `  ${chalk.bold(`On Your Network:`)}  ${urls.lanUrlForTerminal}___graphql`
+      `  ${pc.bold(`On Your Network:`)}  ${urls.lanUrlForTerminal}___graphql`
     )
   } else {
     console.log(`  ${urls.localUrlForTerminal}___graphql`)
@@ -46,12 +40,10 @@ export function printInstructions(appName: string, urls: IPreparedUrls): void {
 
     if (urls.lanUrlForTerminal) {
       console.log(
-        `  ${chalk.bold(`Local:`)}            ${
-          urls.localUrlForTerminal
-        }___admin`
+        `  ${pc.bold(`Local:`)}            ${urls.localUrlForTerminal}___admin`
       )
       console.log(
-        `  ${chalk.bold(`On Your Network:`)}  ${urls.lanUrlForTerminal}___admin`
+        `  ${pc.bold(`On Your Network:`)}  ${urls.lanUrlForTerminal}___admin`
       )
     } else {
       console.log(`  ${urls.localUrlForTerminal}___admin`)
@@ -61,7 +53,7 @@ export function printInstructions(appName: string, urls: IPreparedUrls): void {
   console.log()
   console.log(`Note that the development build is not optimized.`)
   console.log(
-    `To create a production build, use ` + `${chalk.cyan(`gatsby build`)}`
+    `To create a production build, use ` + `${pc.cyan(`gatsby build`)}`
   )
   console.log()
 }

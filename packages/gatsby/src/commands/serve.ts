@@ -3,7 +3,7 @@ import openurl from "better-opn"
 import fs from "fs-extra"
 import compression from "compression"
 import express from "express"
-import chalk from "chalk"
+import pc from "picocolors"
 import { match as reachMatch } from "@gatsbyjs/reach-router"
 import report from "gatsby-cli/lib/reporter"
 
@@ -48,12 +48,10 @@ const readMatchPaths = async (
   } catch (error) {
     report.warn(error)
     report.warn(
-      `Could not read ${chalk.bold(
-        `match-paths.json`
-      )} from the .cache directory`
+      `Could not read ${pc.bold(`match-paths.json`)} from the .cache directory`
     )
     report.warn(
-      `Client-side routing will not work correctly. Maybe you need to re-run ${chalk.bold(
+      `Client-side routing will not work correctly. Maybe you need to re-run ${pc.bold(
         `gatsby build`
       )}?`
     )
@@ -343,16 +341,14 @@ module.exports = async (program: IServeProgram): Promise<void> => {
 
   function printInstructions(appName: string, urls: IPreparedUrls): void {
     console.log()
-    console.log(`You can now view ${chalk.bold(appName)} in the browser.`)
+    console.log(`You can now view ${pc.bold(appName)} in the browser.`)
     console.log()
 
     if (urls.lanUrlForTerminal) {
       console.log(
-        `  ${chalk.bold(`Local:`)}            ${urls.localUrlForTerminal}`
+        `  ${pc.bold(`Local:`)}            ${urls.localUrlForTerminal}`
       )
-      console.log(
-        `  ${chalk.bold(`On Your Network:`)}  ${urls.lanUrlForTerminal}`
-      )
+      console.log(`  ${pc.bold(`On Your Network:`)}  ${urls.lanUrlForTerminal}`)
     } else {
       console.log(`  ${urls.localUrlForTerminal}`)
     }

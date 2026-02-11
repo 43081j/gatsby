@@ -1,5 +1,5 @@
 import address from "address"
-import chalk from "chalk"
+import pc from "picocolors"
 import url from "url"
 
 export interface IPreparedUrls {
@@ -25,7 +25,7 @@ export function prepareUrls(
     url.format({
       protocol,
       hostname,
-      port: chalk.bold(String(port)),
+      port: pc.bold(String(port)),
       pathname: `/`,
     })
 

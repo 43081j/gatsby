@@ -1,7 +1,7 @@
 import _ from "lodash"
 import { isCI } from "gatsby-core-utils"
 import { IFlag } from "./flags"
-import chalk from "chalk"
+import pc from "picocolors"
 import { commaListsAnd } from "common-tags"
 import { distance } from "fastest-levenshtein"
 
@@ -165,7 +165,7 @@ const handleFlags = (
     let message = ``
     message += `\n- ${flag.name}`
     if (flag.experimental) {
-      message += ` · ${chalk.black.bgYellow.bold(`EXPERIMENTAL`)}`
+      message += ` · ${pc.black(pc.bgYellow(pc.bold(`EXPERIMENTAL`)))}`
     }
     if (flag.umbrellaIssue) {
       message += ` · (Umbrella Issue (${flag.umbrellaIssue}))`

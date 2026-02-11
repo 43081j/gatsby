@@ -1,6 +1,6 @@
 import { getConfigStore } from "gatsby-core-utils"
 import reporter from "gatsby-cli/lib/reporter"
-import chalk from "chalk"
+import pc from "picocolors"
 
 type CancelExperimentNoticeCallback = () => void
 
@@ -55,7 +55,7 @@ flags (samples below)`
     notice =>
       (message += `
 
-${chalk.bgBlue.bold(notice.experimentIdentifier)} (${notice.umbrellaLink}), ${
+${pc.bgBlue(pc.bold(notice.experimentIdentifier))} (${notice.umbrellaLink}), ${
         notice.noticeText
       }\n`)
   )

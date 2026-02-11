@@ -1,6 +1,6 @@
 const Promise = require(`bluebird`)
 const _ = require(`lodash`)
-const chalk = require(`chalk`)
+import pc from "picocolors"
 const { bindActionCreators: origBindActionCreators } = require(`redux`)
 const memoize = require(`memoizee`)
 
@@ -392,17 +392,17 @@ const runAPI = async (plugin, api, args, activity) => {
           if (apiFinished && !alreadyDisplayed) {
             const warning = [
               reporter.stripIndent(`
-              Action ${chalk.bold(
+              Action ${pc.bold(
                 `createPage`
-              )} was called outside of its expected asynchronous lifecycle ${chalk.bold(
+              )} was called outside of its expected asynchronous lifecycle ${pc.bold(
                 `createPages`
-              )} in ${chalk.bold(plugin.name)}.
-              Ensure that you return a Promise from ${chalk.bold(
+              )} in ${pc.bold(plugin.name)}.
+              Ensure that you return a Promise from ${pc.bold(
                 `createPages`
-              )} and are awaiting any asynchronous method invocations (like ${chalk.bold(
+              )} and are awaiting any asynchronous method invocations (like ${pc.bold(
                 `graphql`
               )} or http requests).
-              For more info and debugging tips: see ${chalk.bold(
+              For more info and debugging tips: see ${pc.bold(
                 `https://gatsby.dev/sync-actions`
               )}
             `),

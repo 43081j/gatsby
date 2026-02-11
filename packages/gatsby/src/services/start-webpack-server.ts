@@ -1,6 +1,6 @@
 import openurl from "better-opn"
 import report from "gatsby-cli/lib/reporter"
-import chalk from "chalk"
+import pc from "picocolors"
 import { Compiler } from "webpack"
 import { Stage } from "../commands/types"
 
@@ -92,7 +92,7 @@ export async function startWebpackServer({
               await openurl(urls.localUrlForBrowser)
             } catch {
               console.log(
-                `${chalk.yellow(
+                `${pc.yellow(
                   `warn`
                 )} Browser not opened because no browser was found`
               )

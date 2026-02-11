@@ -1,6 +1,6 @@
 // @flow
 const reporter = require(`gatsby-cli/lib/reporter`)
-const chalk = require(`chalk`)
+import pc from "picocolors"
 const _ = require(`lodash`)
 const { stripIndent } = require(`common-tags`)
 const report = require(`gatsby-cli/lib/reporter`)
@@ -459,10 +459,10 @@ ${reservedFields.map(f => `  * "${f}"`).join(`\n`)}
 
   if (store.getState().pages.has(alternateSlashPath)) {
     report.warn(
-      chalk.bold.yellow(`Non-deterministic routing danger: `) +
+      pc.bold(pc.yellow(`Non-deterministic routing danger: `)) +
         `Attempting to create page: "${page.path}", but page "${alternateSlashPath}" already exists\n` +
-        chalk.bold.yellow(
-          `This could lead to non-deterministic routing behavior`
+        pc.bold(
+          pc.yellow(`This could lead to non-deterministic routing behavior`)
         )
     )
   }
@@ -681,8 +681,10 @@ const createNode = (
 ) => {
   if (!_.isObject(node)) {
     return console.log(
-      chalk.bold.red(
-        `The node passed to the "createNode" action creator must be an object`
+      pc.bold(
+        pc.red(
+          `The node passed to the "createNode" action creator must be an object`
+        )
       )
     )
   }
@@ -706,8 +708,10 @@ const createNode = (
   if (node.internal.owner) {
     report.error(JSON.stringify(node, null, 4))
     report.panic(
-      chalk.bold.red(
-        `The node internal.owner field is set automatically by Gatsby and not by plugins`
+      pc.bold(
+        pc.red(
+          `The node internal.owner field is set automatically by Gatsby and not by plugins`
+        )
       )
     )
   }

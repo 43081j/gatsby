@@ -8,10 +8,10 @@ import {
   SourceMapInput,
   sourceContentFor,
 } from "@jridgewell/trace-mapping"
+import pc from "picocolors"
 
 const fs = require(`fs-extra`)
 const path = require(`path`)
-const chalk = require(`chalk`)
 const { isNodeInternalModulePath } = require(`gatsby-core-utils`)
 
 const getDirName = (arg: unknown): string => {
@@ -118,7 +118,7 @@ export const getNonGatsbyCodeFrameFormatted = ({
   }
 
   const { fileName, line, column, codeFrame } = possibleCodeFrame
-  return `File ${chalk.bold(`${fileName}:${line}:${column}`)}\n${codeFrame}`
+  return `File ${pc.bold(`${fileName}:${line}:${column}`)}\n${codeFrame}`
 }
 
 interface IOriginalSourcePositionAndContent {
