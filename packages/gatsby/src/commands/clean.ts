@@ -1,6 +1,6 @@
 import fs from "fs-extra"
 import path from "path"
-import findCacheDir from "find-cache-dir"
+import { cache } from "empathic/package"
 
 import {
   userGetsSevenDayFeedback,
@@ -17,13 +17,9 @@ module.exports = async function clean(program: IProgram): Promise<void> {
     `.cache`,
     `public`,
     // Ensure we clean babel loader cache
-    findCacheDir({
-      name: `babel-loader`,
-    }),
-    findCacheDir({
-      name: `terser-webpack-plugin`,
-    }),
-  ].filter(Boolean)
+    cache(`babel-loader`),
+    cache(`terser-webpack-plugin`),
+  ].filter((dir): dir is string => typeof dir === `string`)
 
   report.info(`Deleting ${directories.join(`, `)}`)
 
