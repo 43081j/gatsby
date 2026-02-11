@@ -181,7 +181,6 @@ module.exports = async (
               commons: [directoryPath(`.cache/app`)],
             }
           : {
-              polyfill: directoryPath(`.cache/polyfill-entry`),
               commons: [directoryPath(`.cache/app`)],
             }
       case `develop-html`:
@@ -201,7 +200,6 @@ module.exports = async (
               app: directoryPath(`.cache/production-app`),
             }
           : {
-              polyfill: directoryPath(`.cache/polyfill-entry`),
               app: directoryPath(`.cache/production-app`),
             }
       default:
