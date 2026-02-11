@@ -6,7 +6,6 @@
 // Entrypoint: ally.js/maintain/tab-focus
 
 import _platform from 'platform'
-import cssEscape from 'css.escape'
 
 // input may be undefined, selector-tring, Node, NodeList, HTMLCollection, array of Nodes
 // yes, to some extent this is a bad replica of jQuery's constructor function
@@ -1729,7 +1728,7 @@ var isVisible = isVisibleRules.except({})
 function getMapByName(name, _document) {
   // apparently getElementsByName() also considers id attribute in IE & opera
   // https://developer.mozilla.org/en-US/docs/Web/API/Document/getElementsByName
-  var map = _document.querySelector('map[name="' + cssEscape(name) + '"]')
+  var map = _document.querySelector('map[name="' + CSS.escape(name) + '"]')
   return map || null
 }
 
@@ -1750,7 +1749,7 @@ function getImageOfArea(element) {
   // the image must be valid and loaded for the map to take effect
   var _document = getDocument(element)
   return (
-    _document.querySelector('img[usemap="#' + cssEscape(map.name) + '"]') ||
+    _document.querySelector('img[usemap="#' + CSS.escape(map.name) + '"]') ||
     null
   )
 }
