@@ -5,7 +5,7 @@ const {
   renderToPipeableStream,
 } = require(`react-dom/server`)
 const { ServerLocation, Router, isRedirect } = require(`@gatsbyjs/reach-router`)
-const merge = require(`deepmerge`)
+const merge = require(`@fastify/deepmerge`)
 const { StaticQueryContext } = require(`gatsby`)
 const fs = require(`fs`)
 const { WritableAsPromise } = require(`./server-utils/writable-as-promise`)
