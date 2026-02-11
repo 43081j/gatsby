@@ -1,9 +1,9 @@
 import path from "path"
 import glob from "glob"
-import debug from "debug"
+import { createDebug } from "obug"
 import report from "gatsby-cli/lib/reporter"
 
-const log = debug(`gatsby:webpack-eslint-config`)
+const log = createDebug(`gatsby:webpack-eslint-config`)
 
 export const hasLocalEslint = (directory: string): boolean => {
   try {
