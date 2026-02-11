@@ -1,6 +1,5 @@
 import webpackHotMiddleware from "@gatsbyjs/webpack-hot-middleware"
 import webpackDevMiddleware, { type Watching } from "webpack-dev-middleware"
-import got, { Method } from "got"
 import webpack, { Compilation } from "webpack"
 import express from "express"
 import compression from "compression"
@@ -598,7 +597,7 @@ export async function startServer(
   // Set up API proxy.
   if (proxy) {
     proxy.forEach(({ prefix, url }) => {
-      app.use(`${prefix}/*`, (req, res) => {
+      app.use(`${prefix}/*`, async (req, res) => {
         const proxiedUrl = url + req.originalUrl
         const {
           // remove `host` from copied headers
@@ -606,29 +605,44 @@ export async function startServer(
           headers: { host, ...headers },
           method,
         } = req
-        req
-          .pipe(
-            got
-              .stream(proxiedUrl, {
-                headers,
-                method: method as Method,
-                decompress: false,
-              })
-              .on(`response`, response =>
-                res.writeHead(response.statusCode || 200, response.headers)
-              )
-              .on(`error`, (err, _, response) => {
-                if (response) {
-                  res.writeHead(response.statusCode || 400, response.headers)
-                } else {
-                  const message = `Error when trying to proxy request "${req.originalUrl}" to "${proxiedUrl}"`
 
-                  report.error(message, err)
-                  res.sendStatus(500)
-                }
-              })
+        try {
+          // Buffer the request body for non-GET/HEAD methods
+          let body: Buffer | undefined
+          if (method !== `GET` && method !== `HEAD`) {
+            body = await new Promise<Buffer>((resolve, reject) => {
+              const chunks: Array<Uint8Array> = []
+              req.on(`data`, chunk => chunks.push(chunk))
+              req.on(`end`, () => resolve(Buffer.concat(chunks)))
+              req.on(`error`, reject)
+            })
+          }
+
+          const response = await fetch(proxiedUrl, {
+            headers: headers as HeadersInit,
+            method,
+            body,
+          })
+
+          res.writeHead(
+            response.status,
+            Object.fromEntries(response.headers.entries())
           )
-          .pipe(res)
+
+          if (response.body) {
+            const reader = response.body.getReader()
+            let chunk = await reader.read()
+            while (!chunk.done) {
+              res.write(chunk.value)
+              chunk = await reader.read()
+            }
+          }
+          res.end()
+        } catch (err) {
+          const message = `Error when trying to proxy request "${req.originalUrl}" to "${proxiedUrl}"`
+          report.error(message, err as Error)
+          res.sendStatus(500)
+        }
       })
     }, cors())
   }
