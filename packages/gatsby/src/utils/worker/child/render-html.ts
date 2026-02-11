@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-namespace */
 
 import fs from "fs-extra"
-import Bluebird from "bluebird"
 import * as path from "path"
 import { generateHtmlPath } from "gatsby-core-utils/page-html"
 import { generatePageDataPath } from "gatsby-core-utils/page-data"
@@ -384,9 +383,10 @@ export const renderHTMLProd = async ({
     }
   }
 
-  await Bluebird.map(
-    paths,
-    async pagePath => {
+  let i = 0
+  async function worker(): Promise<void> {
+    while (i < paths.length) {
+      const pagePath = paths[i++]
       try {
         const pageData = await readPageData(publicDir, pagePath)
         const resourcesForTemplate = await getResourcesForTemplate(pageData)
@@ -441,9 +441,9 @@ export const renderHTMLProd = async ({
           throw e
         }
       }
-    },
-    { concurrency: 2 }
-  )
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(2, paths.length) }, worker))
 
   return {
     unsafeBuiltinsUsageByPagePath,
@@ -480,9 +480,12 @@ export const renderHTMLDev = async ({
     lastSessionId = sessionId
   }
 
-  return Bluebird.map(
-    paths,
-    async pagePath => {
+  const results = new Array(paths.length)
+  let i = 0
+  async function worker(): Promise<void> {
+    while (i < paths.length) {
+      const index = i++
+      const pagePath = paths[index]
       try {
         const htmlString = await htmlComponentRenderer.default({
           pagePath,
@@ -490,7 +493,10 @@ export const renderHTMLDev = async ({
             isDuringBuild: true,
           },
         })
-        return fs.outputFile(generateHtmlPath(outputDir, pagePath), htmlString)
+        results[index] = await fs.outputFile(
+          generateHtmlPath(outputDir, pagePath),
+          htmlString
+        )
       } catch (e) {
         // add some context to error so we can display more helpful message
         e.context = {
@@ -498,9 +504,10 @@ export const renderHTMLDev = async ({
         }
         throw e
       }
-    },
-    { concurrency: 2 }
-  )
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(2, paths.length) }, worker))
+  return results
 }
 
 export async function renderPartialHydrationProd({

@@ -6,8 +6,7 @@ import {
   PluginEntry,
   IPluginEntryWithParentDir,
 } from "../../utils/merge-gatsby-config"
-import { mapSeries } from "bluebird"
-import { flattenDeep, isEqual, isFunction, uniqWith } from "lodash"
+import { isEqual, isFunction, uniqWith } from "lodash"
 import DebugCtor from "debug"
 import { preferDefault } from "../prefer-default"
 import { getConfigFile } from "../get-config-file"
@@ -103,7 +102,7 @@ const resolveTheme = async (
 // Theoretically, there could be an infinite loop here but in practice there is
 // no use case for a loop so I expect that to only happen if someone is very
 // off track and creating their own set of themes
-const processTheme = (
+const processTheme = async (
   { themeName, themeConfig, themeSpec, themeDir, configFilePath }: IThemeObj,
   { rootDir }: { rootDir: string }
 ): Promise<Array<IThemeObj>> => {
@@ -114,29 +113,33 @@ const processTheme = (
   if (themeConfig && themesList) {
     // for every parent theme a theme defines, resolve the parent's
     // gatsby config and return it in order [parentA, parentB, child]
-    return mapSeries(
-      themesList,
-      async (spec: PluginEntry): Promise<Array<IThemeObj>> => {
-        const themeObj = await resolveTheme(
-          spec,
-          configFilePath,
-          false,
-          themeDir
-        )
-        return processTheme(themeObj, { rootDir: themeDir })
+    const results: Array<IThemeObj> = []
+    for (const spec of themesList) {
+      const themeObj = await resolveTheme(spec, configFilePath, false, themeDir)
+      const processed = await processTheme(themeObj, { rootDir: themeDir })
+      for (const item of processed) {
+        results.push(item)
       }
-    ).then(arr =>
-      flattenDeep(
-        arr.concat([
-          { themeName, themeConfig, themeSpec, themeDir, parentDir: rootDir },
-        ])
-      )
-    )
+    }
+    results.push({
+      themeName,
+      themeConfig,
+      themeSpec,
+      themeDir,
+      parentDir: rootDir,
+    })
+    return results
   } else {
     // if a theme doesn't define additional themes, return the original theme
-    return Promise.resolve([
-      { themeName, themeConfig, themeSpec, themeDir, parentDir: rootDir },
-    ])
+    return [
+      {
+        themeName,
+        themeConfig,
+        themeSpec,
+        themeDir,
+        parentDir: rootDir,
+      },
+    ]
   }
 }
 
@@ -158,18 +161,19 @@ export async function loadThemes(
   config: IGatsbyConfigInput
   themes: Array<IThemeObj>
 }> {
-  const themesA = await mapSeries(
-    config.plugins || [],
-    async (themeSpec: PluginEntry) => {
-      const themeObj = await resolveTheme(
-        themeSpec,
-        configFilePath,
-        true,
-        rootDir
-      )
-      return processTheme(themeObj, { rootDir })
+  const themesA: Array<IThemeObj> = []
+  for (const themeSpec of config.plugins || []) {
+    const themeObj = await resolveTheme(
+      themeSpec,
+      configFilePath,
+      true,
+      rootDir
+    )
+    const processed = await processTheme(themeObj, { rootDir })
+    for (const item of processed) {
+      themesA.push(item)
     }
-  ).then(arr => flattenDeep(arr))
+  }
 
   // log out flattened themes list to aid in debugging
   debug(themesA)
@@ -177,49 +181,46 @@ export async function loadThemes(
   // map over each theme, adding the theme itself to the plugins
   // list in the config for the theme. This enables the usage of
   // gatsby-node, etc in themes.
-  return (
-    mapSeries(
-      themesA,
-      ({ themeName, themeConfig = {}, themeSpec, themeDir, parentDir }) => {
-        return {
-          ...themeConfig,
-          plugins: [
-            ...(themeConfig.plugins || []).map(plugin =>
-              normalizePluginEntry(plugin, themeDir)
-            ),
-            // theme plugin is last so it's gatsby-node, etc can override it's declared plugins, like a normal site.
-            {
-              resolve: themeName,
-              options: typeof themeSpec === `string` ? {} : themeSpec.options,
-              parentDir,
-            },
-          ],
-        }
+  const themeConfigs = themesA.map(
+    ({ themeName, themeConfig = {}, themeSpec, themeDir, parentDir }) => {
+      return {
+        ...themeConfig,
+        plugins: [
+          ...(themeConfig.plugins || []).map(plugin =>
+            normalizePluginEntry(plugin, themeDir)
+          ),
+          // theme plugin is last so it's gatsby-node, etc can override it's declared plugins, like a normal site.
+          {
+            resolve: themeName,
+            options: typeof themeSpec === `string` ? {} : themeSpec.options,
+            parentDir,
+          },
+        ],
       }
-    )
-      /**
-       * themes resolve to a gatsby-config, so here we merge all of the configs
-       * into a single config, making sure to maintain the order in which
-       * they were defined so that later configs, like the user's site and
-       * children, can override functionality in earlier themes.
-       */
-      .reduce(mergeGatsbyConfig, {})
-      .then(newConfig => {
-        const mergedConfig = mergeGatsbyConfig(newConfig, {
-          ...config,
-          plugins: [
-            ...(config.plugins || []).map(plugin =>
-              normalizePluginEntry(plugin, rootDir)
-            ),
-          ],
-        })
-
-        mergedConfig.plugins = uniqWith(mergedConfig.plugins, isEqual)
-
-        return {
-          config: mergedConfig,
-          themes: themesA,
-        }
-      })
+    }
   )
+
+  /**
+   * themes resolve to a gatsby-config, so here we merge all of the configs
+   * into a single config, making sure to maintain the order in which
+   * they were defined so that later configs, like the user's site and
+   * children, can override functionality in earlier themes.
+   */
+  const newConfig = themeConfigs.reduce(mergeGatsbyConfig, {})
+
+  const mergedConfig = mergeGatsbyConfig(newConfig, {
+    ...config,
+    plugins: [
+      ...(config.plugins || []).map(plugin =>
+        normalizePluginEntry(plugin, rootDir)
+      ),
+    ],
+  })
+
+  mergedConfig.plugins = uniqWith(mergedConfig.plugins, isEqual)
+
+  return {
+    config: mergedConfig,
+    themes: themesA,
+  }
 }

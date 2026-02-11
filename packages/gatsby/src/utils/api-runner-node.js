@@ -1,4 +1,3 @@
-const Promise = require(`bluebird`)
 const _ = require(`lodash`)
 const chalk = require(`chalk`)
 const { bindActionCreators: origBindActionCreators } = require(`redux`)
@@ -55,15 +54,6 @@ function createContentDigest(node) {
     },
     fields: undefined,
   })
-}
-
-if (!process.env.BLUEBIRD_DEBUG && !process.env.BLUEBIRD_LONG_STACK_TRACES) {
-  // Unless specified - disable longStackTraces
-  // as this have severe perf penalty ( http://bluebirdjs.com/docs/api/promise.longstacktraces.html )
-  // This is mainly for `gatsby develop` due to NODE_ENV being set to development
-  // which cause bluebird to enable longStackTraces
-  // `gatsby build` (with NODE_ENV=production) already doesn't enable longStackTraces
-  Promise.config({ longStackTraces: false })
 }
 
 const nodeMutationsWrappers = {
@@ -485,12 +475,16 @@ const runAPI = async (plugin, api, args, activity) => {
     // If the plugin is using a callback use that otherwise
     // expect a Promise to be returned.
     if (gatsbyNode[api].length === 3) {
-      return Promise.fromCallback(callback => {
+      return new Promise((resolve, reject) => {
         const cb = (err, val) => {
           pluginSpan.finish()
           apiFinished = true
           endInProgressActivitiesCreatedByThisRun()
-          callback(err, val)
+          if (err) {
+            reject(err)
+          } else {
+            resolve(val)
+          }
         }
 
         gatsbyNode[api](...apiCallArgs, cb)
@@ -536,7 +530,8 @@ function apiRunnerNode(api, args = {}, { pluginSource, activity } = {}) {
     return null
   }
 
-  return new Promise(resolve => {
+  // eslint-disable-next-line no-async-promise-executor
+  return new Promise(async resolve => {
     const { parentSpan, traceId, traceTags, waitForCascadingActions } = args
     const apiSpanArgs = parentSpan ? { childOf: parentSpan } : {}
     const apiSpan = tracer.startSpan(`run-api`, apiSpanArgs)
@@ -609,143 +604,143 @@ function apiRunnerNode(api, args = {}, { pluginSource, activity } = {}) {
       }
     }
 
-    let apiRunPromiseOptions = {}
-    let runPromise
+    const runPlugin = plugin => {
+      if (stopQueuedApiRuns) {
+        return null
+      }
+
+      return importGatsbyPlugin(plugin, `gatsby-node`).then(gatsbyNode => {
+        const pluginName =
+          plugin.name === `default-site-plugin` ? `gatsby-node.js` : plugin.name
+
+        // TODO: rethink createNode API to handle this better
+        if (
+          api === `onCreateNode` &&
+          gatsbyNode?.shouldOnCreateNode && // Don't bail if this api is not exported
+          !gatsbyNode.shouldOnCreateNode(
+            { node: args.node },
+            plugin.pluginOptions
+          )
+        ) {
+          // Do not try to schedule an async event for this node for this plugin
+          return null
+        }
+
+        return new Promise(resolve => {
+          resolve(
+            runAPI(plugin, api, { ...args, parentSpan: apiSpan }, activity)
+          )
+        }).catch(err => {
+          const localReporter = getLocalReporter({ activity, reporter })
+
+          const file = stackTrace
+            .parse(err)
+            .find(file => /gatsby-node/.test(file.fileName))
+
+          let codeFrame = ``
+          const structuredError = errorParser({ err })
+
+          if (file) {
+            const { fileName, lineNumber: line, columnNumber: column } = file
+            const trimmedFileName = fileName.match(/^(async )?(.*)/)[2]
+
+            try {
+              const code = fs.readFileSync(trimmedFileName, {
+                encoding: `utf-8`,
+              })
+              codeFrame = codeFrameColumns(
+                code,
+                {
+                  start: {
+                    line,
+                    column,
+                  },
+                },
+                {
+                  highlightCode: true,
+                }
+              )
+            } catch (_e) {
+              // sometimes stack trace point to not existing file
+              // particularly when file is transpiled and path actually changes
+              // (like pointing to not existing `src` dir or original typescript file)
+            }
+
+            structuredError.location = {
+              start: { line: line, column: column },
+            }
+            structuredError.filePath = fileName
+          }
+
+          structuredError.context = {
+            ...structuredError.context,
+            pluginName,
+            api,
+            codeFrame,
+          }
+
+          localReporter.panicOnBuild(structuredError)
+
+          return null
+        })
+      })
+    }
+
+    let results
     if (
       api === `sourceNodes` &&
       process.env.GATSBY_EXPERIMENTAL_PARALLEL_SOURCING
     ) {
-      runPromise = Promise.map
-      apiRunPromiseOptions.concurrency = 20
+      const concurrency = Math.min(20, implementingPlugins.length)
+      let i = 0
+      results = new Array(implementingPlugins.length)
+      async function worker() {
+        while (i < implementingPlugins.length) {
+          const index = i++
+          results[index] = await runPlugin(implementingPlugins[index])
+        }
+      }
+      await Promise.all(Array.from({ length: concurrency }, worker))
     } else {
-      runPromise = Promise.mapSeries
-      apiRunPromiseOptions = undefined
+      results = []
+      for (const plugin of implementingPlugins) {
+        results.push(await runPlugin(plugin))
+      }
     }
 
-    runPromise(
-      implementingPlugins,
-      plugin => {
-        if (stopQueuedApiRuns) {
-          return null
-        }
+    if (onAPIRunComplete) {
+      onAPIRunComplete()
+    }
+    // Remove runner instance
+    apisRunningById.delete(apiRunInstance.id)
+    const currentCount = apisRunningByTraceId.get(apiRunInstance.traceId)
+    apisRunningByTraceId.set(apiRunInstance.traceId, currentCount - 1)
 
-        return importGatsbyPlugin(plugin, `gatsby-node`).then(gatsbyNode => {
-          const pluginName =
-            plugin.name === `default-site-plugin`
-              ? `gatsby-node.js`
-              : plugin.name
+    if (apisRunningById.size === 0) {
+      emitter.emit(`API_RUNNING_QUEUE_EMPTY`)
+    }
 
-          // TODO: rethink createNode API to handle this better
-          if (
-            api === `onCreateNode` &&
-            gatsbyNode?.shouldOnCreateNode && // Don't bail if this api is not exported
-            !gatsbyNode.shouldOnCreateNode(
-              { node: args.node },
-              plugin.pluginOptions
-            )
-          ) {
-            // Do not try to schedule an async event for this node for this plugin
-            return null
-          }
+    // Filter empty results
+    apiRunInstance.results = results.filter(result => !_.isEmpty(result))
 
-          return new Promise(resolve => {
-            resolve(
-              runAPI(plugin, api, { ...args, parentSpan: apiSpan }, activity)
-            )
-          }).catch(err => {
-            const localReporter = getLocalReporter({ activity, reporter })
+    // Filter out empty responses and return if the
+    // api caller isn't waiting for cascading actions to finish.
+    if (!waitForCascadingActions) {
+      apiSpan.finish()
+      resolve(apiRunInstance.results)
+    }
 
-            const file = stackTrace
-              .parse(err)
-              .find(file => /gatsby-node/.test(file.fileName))
-
-            let codeFrame = ``
-            const structuredError = errorParser({ err })
-
-            if (file) {
-              const { fileName, lineNumber: line, columnNumber: column } = file
-              const trimmedFileName = fileName.match(/^(async )?(.*)/)[2]
-
-              try {
-                const code = fs.readFileSync(trimmedFileName, {
-                  encoding: `utf-8`,
-                })
-                codeFrame = codeFrameColumns(
-                  code,
-                  {
-                    start: {
-                      line,
-                      column,
-                    },
-                  },
-                  {
-                    highlightCode: true,
-                  }
-                )
-              } catch (_e) {
-                // sometimes stack trace point to not existing file
-                // particularly when file is transpiled and path actually changes
-                // (like pointing to not existing `src` dir or original typescript file)
-              }
-
-              structuredError.location = {
-                start: { line: line, column: column },
-              }
-              structuredError.filePath = fileName
-            }
-
-            structuredError.context = {
-              ...structuredError.context,
-              pluginName,
-              api,
-              codeFrame,
-            }
-
-            localReporter.panicOnBuild(structuredError)
-
-            return null
-          })
-        })
-      },
-      apiRunPromiseOptions
-    ).then(results => {
-      if (onAPIRunComplete) {
-        onAPIRunComplete()
+    // Check if any of our waiters are done.
+    waitingForCasacadeToFinish = waitingForCasacadeToFinish.filter(instance => {
+      // If none of its trace IDs are running, it's done.
+      const apisByTraceIdCount = apisRunningByTraceId.get(instance.traceId)
+      if (apisByTraceIdCount === 0) {
+        instance.span.finish()
+        instance.resolve(instance.results)
+        return false
+      } else {
+        return true
       }
-      // Remove runner instance
-      apisRunningById.delete(apiRunInstance.id)
-      const currentCount = apisRunningByTraceId.get(apiRunInstance.traceId)
-      apisRunningByTraceId.set(apiRunInstance.traceId, currentCount - 1)
-
-      if (apisRunningById.size === 0) {
-        emitter.emit(`API_RUNNING_QUEUE_EMPTY`)
-      }
-
-      // Filter empty results
-      apiRunInstance.results = results.filter(result => !_.isEmpty(result))
-
-      // Filter out empty responses and return if the
-      // api caller isn't waiting for cascading actions to finish.
-      if (!waitForCascadingActions) {
-        apiSpan.finish()
-        resolve(apiRunInstance.results)
-      }
-
-      // Check if any of our waiters are done.
-      waitingForCasacadeToFinish = waitingForCasacadeToFinish.filter(
-        instance => {
-          // If none of its trace IDs are running, it's done.
-          const apisByTraceIdCount = apisRunningByTraceId.get(instance.traceId)
-          if (apisByTraceIdCount === 0) {
-            instance.span.finish()
-            instance.resolve(instance.results)
-            return false
-          } else {
-            return true
-          }
-        }
-      )
-      return
     })
   })
 }
